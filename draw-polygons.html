@@ -1,16 +1,352 @@
-https://peterthordimitra.github.io/bahamas-chess/chess.html
-https://peterthordimitra.github.io/text-clock/text-clock.html
-https://peterthordimitra.github.io/analog-clock/analog-clock.html
-https://peterthordimitra.github.io/calculator/calculator.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polygon Drawing Tool</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .instructions {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .instructions h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        
+        .instructions li {
+            margin: 5px 0;
+        }
+        
+        .controls {
+            margin-bottom: 15px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            margin-right: 10px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        #deleteBtn {
+            background-color: #f44336;
+        }
+        
+        #deleteBtn:hover:not(:disabled) {
+            background-color: #da190b;
+        }
+        
+        canvas {
+            border: 2px solid #333;
+            background-color: white;
+            display: block;
+            cursor: crosshair;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Polygon Drawing Tool</h1>
+        
+        <div class="instructions">
+            <h3>Instructions:</h3>
+            <ul>
+                <li><strong>Single click</strong> to add vertices to the current polygon</li>
+                <li><strong>Double click</strong> to close the polygon</li>
+                <li><strong>Click and drag</strong> a vertex to move it</li>
+                <li><strong>Click</strong> a vertex to select it (turns red)</li>
+                <li>Use the <strong>Delete</strong> button to remove the selected vertex</li>
+                <li>Use the <strong>Clear All</strong> button to remove all polygons</li>
+            </ul>
+        </div>
+        
+        <div class="controls">
+            <button id="clearBtn">Clear All</button>
+            <button id="deleteBtn" disabled>Delete Selected Vertex</button>
+        </div>
+        
+        <canvas id="canvas" width="1000" height="600"></canvas>
+        
+        <div class="status" id="status">Click on the canvas to start drawing a polygon</div>
+    </div>
 
-https://peterthordimitra.github.io/draw-polygons/draw-polygons.html
-
-
-
-Instructions:
-Single click to add vertices to the current polygon
-Double click to close the polygon
-Click and drag a vertex to move it
-Click a vertex to select it (turns red)
-Use the Delete button to remove the selected vertex
-Use the Clear All button to remove all polygons
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const clearBtn = document.getElementById('clearBtn');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const statusDiv = document.getElementById('status');
+        
+        let polygons = []; // Array of completed polygons
+        let currentPolygon = []; // Current polygon being drawn
+        let selectedVertex = null; // {polygonIndex, vertexIndex}
+        let draggingVertex = null; // Same structure as selectedVertex
+        let isDragging = false;
+        
+        const VERTEX_RADIUS = 6;
+        const SELECTED_VERTEX_RADIUS = 8;
+        
+        // Update status message
+        function updateStatus(message) {
+            statusDiv.textContent = message;
+        }
+        
+        // Draw all polygons and vertices
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw completed polygons
+            polygons.forEach((polygon, polyIndex) => {
+                if (polygon.length < 2) return;
+                
+                // Draw polygon outline
+                ctx.strokeStyle = '#2196F3';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(polygon[0].x, polygon[0].y);
+                for (let i = 1; i < polygon.length; i++) {
+                    ctx.lineTo(polygon[i].x, polygon[i].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+                
+                // Fill polygon with semi-transparent color
+                ctx.fillStyle = 'rgba(33, 150, 243, 0.1)';
+                ctx.fill();
+                
+                // Draw vertices
+                polygon.forEach((vertex, vertIndex) => {
+                    const isSelected = selectedVertex && 
+                                     selectedVertex.polygonIndex === polyIndex && 
+                                     selectedVertex.vertexIndex === vertIndex;
+                    
+                    ctx.fillStyle = isSelected ? '#f44336' : '#2196F3';
+                    ctx.beginPath();
+                    ctx.arc(vertex.x, vertex.y, 
+                           isSelected ? SELECTED_VERTEX_RADIUS : VERTEX_RADIUS, 
+                           0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Draw white outline for better visibility
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                });
+            });
+            
+            // Draw current polygon being drawn
+            if (currentPolygon.length > 0) {
+                ctx.strokeStyle = '#FF9800';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(currentPolygon[0].x, currentPolygon[0].y);
+                for (let i = 1; i < currentPolygon.length; i++) {
+                    ctx.lineTo(currentPolygon[i].x, currentPolygon[i].y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                // Draw vertices of current polygon
+                currentPolygon.forEach(vertex => {
+                    ctx.fillStyle = '#FF9800';
+                    ctx.beginPath();
+                    ctx.arc(vertex.x, vertex.y, VERTEX_RADIUS, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                });
+            }
+        }
+        
+        // Find vertex at given coordinates
+        function findVertexAt(x, y) {
+            // Check completed polygons
+            for (let polyIndex = 0; polyIndex < polygons.length; polyIndex++) {
+                const polygon = polygons[polyIndex];
+                for (let vertIndex = 0; vertIndex < polygon.length; vertIndex++) {
+                    const vertex = polygon[vertIndex];
+                    const dist = Math.sqrt((x - vertex.x) ** 2 + (y - vertex.y) ** 2);
+                    if (dist <= SELECTED_VERTEX_RADIUS) {
+                        return { polygonIndex: polyIndex, vertexIndex: vertIndex };
+                    }
+                }
+            }
+            return null;
+        }
+        
+        // Mouse down event
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Check if clicking on an existing vertex
+            const vertex = findVertexAt(x, y);
+            if (vertex) {
+                draggingVertex = vertex;
+                isDragging = true;
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+            
+            // If currently drawing a polygon, add vertex
+            if (currentPolygon.length > 0 || polygons.length === 0 || polygons[polygons.length - 1].length >= 3) {
+                // Ignore if too close to existing vertex in current polygon
+                const tooClose = currentPolygon.some(v => {
+                    const dist = Math.sqrt((x - v.x) ** 2 + (y - v.y) ** 2);
+                    return dist <= VERTEX_RADIUS * 2;
+                });
+                
+                if (!tooClose) {
+                    currentPolygon.push({ x, y });
+                    updateStatus(`Polygon in progress: ${currentPolygon.length} vertices. Double-click to close.`);
+                    draw();
+                }
+            }
+        });
+        
+        // Mouse move event
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (isDragging && draggingVertex) {
+                // Update vertex position
+                const polygon = polygons[draggingVertex.polygonIndex];
+                polygon[draggingVertex.vertexIndex] = { x, y };
+                draw();
+            } else {
+                // Update cursor based on whether hovering over vertex
+                const vertex = findVertexAt(x, y);
+                canvas.style.cursor = vertex ? 'grab' : 'crosshair';
+            }
+        });
+        
+        // Mouse up event
+        canvas.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                draggingVertex = null;
+                canvas.style.cursor = 'crosshair';
+            }
+        });
+        
+        // Double click event to close polygon
+        canvas.addEventListener('dblclick', (e) => {
+            if (currentPolygon.length >= 3) {
+                polygons.push([...currentPolygon]);
+                currentPolygon = [];
+                updateStatus(`Polygon completed! Click to start a new polygon.`);
+                draw();
+            } else if (currentPolygon.length > 0) {
+                updateStatus('Need at least 3 vertices to close a polygon.');
+            }
+        });
+        
+        // Click event for selecting vertices
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const vertex = findVertexAt(x, y);
+            if (vertex) {
+                selectedVertex = vertex;
+                deleteBtn.disabled = false;
+                updateStatus(`Vertex selected. Click "Delete Selected Vertex" to remove it.`);
+                draw();
+            } else {
+                selectedVertex = null;
+                deleteBtn.disabled = true;
+            }
+        });
+        
+        // Clear all polygons
+        clearBtn.addEventListener('click', () => {
+            polygons = [];
+            currentPolygon = [];
+            selectedVertex = null;
+            deleteBtn.disabled = true;
+            updateStatus('Canvas cleared. Click to start drawing a polygon.');
+            draw();
+        });
+        
+        // Delete selected vertex
+        deleteBtn.addEventListener('click', () => {
+            if (selectedVertex) {
+                const polygon = polygons[selectedVertex.polygonIndex];
+                polygon.splice(selectedVertex.vertexIndex, 1);
+                
+                // Remove polygon if it has fewer than 3 vertices
+                if (polygon.length < 3) {
+                    polygons.splice(selectedVertex.polygonIndex, 1);
+                    updateStatus('Polygon removed (less than 3 vertices remaining).');
+                } else {
+                    updateStatus('Vertex deleted.');
+                }
+                
+                selectedVertex = null;
+                deleteBtn.disabled = true;
+                draw();
+            }
+        });
+        
+        // Initial draw
+        draw();
+    </script>
+</body>
+</html>
